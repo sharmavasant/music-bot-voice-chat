@@ -12,6 +12,33 @@ const child_process = require("child_process");
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 // const tgcalls = new Tgcalls(process.env.SESSION_ID); // Telegram session string
 
+//Global stream state
+let streamState = {
+    tg: null,
+    playing: false
+}
+
+let tg = null;
+
+async function initTG() {
+    if (!tg) {
+        const client = await gramjs(
+            parseInt(process.env.API_ID),
+            process.env.API_HASH,
+            process.env.SESSION_STRING
+        );
+        tg = new GramTGCalls(client, "nomadic_tetris");
+        console.log("✅ TG instance created");
+    } else {
+        console.log("ℹ️ TG instance already exists");
+    }
+}
+
+// const client = await gramjs(parseInt(process.env.API_ID), process.env.API_HASH, process.env.SESSION_STRING);
+// // console.log(client.session.save()); // run once to generate
+
+// const tg = new GramTGCalls(client, "nomadic_tetris");
+
 async function ytSearch(query) {
     const apiKey = process.env.GOOGLE_DATA_API_KEY;
     const apiUrl = "https://www.googleapis.com/youtube/v3/search";
@@ -85,11 +112,18 @@ bot.onText(/\/play (.+)/, async (msg, match) => {
             });
 
             (async () => {
-                const client = await gramjs(parseInt(process.env.API_ID), process.env.API_HASH, process.env.SESSION_STRING);
-                // console.log(client.session.save()); // run once to generate
+                // const client = await gramjs(parseInt(process.env.API_ID), process.env.API_HASH, process.env.SESSION_STRING);
+                // // console.log(client.session.save()); // run once to generate
 
-                let tg = new GramTGCalls(client, "nomadic_tetris");
+                // let tg = new GramTGCalls(client, "nomadic_tetris");
+
+                await initTG();
+
                 const stream = tg.streamAudio(filePath);
+
+                //Managing global state
+                streamState.tg = tg;
+                streamState.playing = true;
 
                 // Listen for end of playback
                 await tg.streamAudio(filePath);
@@ -108,7 +142,6 @@ bot.onText(/\/play (.+)/, async (msg, match) => {
                     reply_markup: {
                         inline_keyboard: [
                             [
-                                { text: "⏮️", callback_data: "prev" },  // Previous
                                 { text: "⏯️", callback_data: "pause" }, // Play/Pause toggle
                                 { text: "⏭️", callback_data: "skip" },  // Next / Skip
                                 { text: "⏹️", callback_data: "stop" },   // Stop
@@ -140,21 +173,36 @@ bot.on("callback_query", async (query) => {
     const data = query.data;
     const chatId = query.message.chat.id;
 
+    if (data === "play") {
+        if (!tg.pauseAudio) {
+            try {
+                await tg.resumeAudio();
+                console.log("resumed");
+            } catch (err) {
+                console.error("resume failed:", err);
+            }
+        }
+    }
+
     if (data === "pause") {
-        await bot.editMessageReplyMarkup(
-            { inline_keyboard: [ /* update buttons here */] },
-            { chat_id: chatId, message_id: query.message.message_id }
-        );
-        // Pause ka code yahan lagao
-        
+        if (!tg.audioStopped) {
+            try {
+                await tg.pauseAudio();
+                console.log("paused");
+            } catch (err) {
+                console.error("pause failed:", err);
+            }
+        }
     }
 
     if (data === "skip") {
         // Skip ka code yahan
+
     }
 
     if (data === "stop") {
         // Stop ka code yahan
+        await tg.stop();
     }
 
     if (data === "close") {
