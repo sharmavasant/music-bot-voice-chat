@@ -174,7 +174,9 @@ bot.on("callback_query", async (query) => {
     const chatId = query.message.chat.id;
 
     if (data === "play") {
-        if (!tg.pauseAudio) {
+        // console.log(tg.pauseAudio);
+        // console.log(tg.audioStopped);
+        if (!tg.audioStopped) {
             try {
                 await tg.resumeAudio();
                 console.log("resumed");
@@ -202,7 +204,10 @@ bot.on("callback_query", async (query) => {
 
     if (data === "stop") {
         // Stop ka code yahan
-        await tg.stop();
+        if(!tg) {
+            console.log("not working");
+            bot.sendMessage(chatId, "Error. Try playing song again")
+        } else await tg.stop();
     }
 
     if (data === "close") {
